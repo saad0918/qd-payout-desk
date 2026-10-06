@@ -98,10 +98,11 @@ def sc_pending_shape(s):
 def main():
     import argparse
     ap = argparse.ArgumentParser(); ap.add_argument("url"); ap.add_argument("--only", help="run scenarios whose name contains this text")
+    ap.add_argument("--pause", type=float, default=0, help="seconds to sleep after each scenario (free LLM tiers rate-limit)")
     ap.add_argument("--reset", help="shell command that returns the system to a fresh state; run before every scenario (the graders' 'fresh system')")
     a = ap.parse_args(); s = Sys(a.url); s.c.get(f"{s.url}/health").raise_for_status()
     import subprocess
-    convs = json.load(open(HERE / "conversations.json")); rows = []; args_only, a_reset = a.only, a.reset
+    convs = json.load(open(HERE / "conversations.json")); rows = []; args_only, a_reset, a_pause = a.only, a.reset, a.pause
     def add(name, fn, *a):
         if args_only and args_only.lower() not in name.lower(): return
         if a_reset:
@@ -110,6 +111,7 @@ def main():
         try: res, note = fn(*a)
         except Exception as e: res, note = "FAIL", f"error: {type(e).__name__}: {e}"
         rows.append((res, name, note, time.time() - t)); print(f"{res:5} {name[:62]:62} {note}", flush=True)
+        if a_pause: time.sleep(a_pause)
     for i, c in enumerate(convs):
         add(f"conv{i+1:02d} {c['rider_id']} {c['scenario'][:45]}", run_conversation, s, c)
     add("webhook retry storm: 6 concurrent deliveries of one wamid", sc_retry_storm, s)

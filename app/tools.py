@@ -20,7 +20,13 @@ def _trip_view(t, lines, rec_day, findings, states):
     v["findings"] = [{**f.dict(), "state": states[f.id], "in_window": engine.in_window(f.day, rec_day)} for f in findings if f.trip_id == t["trip_id"]]
     return v
 
+def _as_list(x):
+    if x is None or x == "": return []
+    if isinstance(x, (list, tuple)): return [str(i) for i in x]
+    return [s for s in re.split(r"[\s,;]+", str(x)) if s]      # models sometimes send "T1, T2" or a bare string
+
 def check_account(conn, rider_id, rec_day: date, day=None, trip_ids=None):
+    trip_ids = _as_list(trip_ids)
     if not day and not trip_ids:
         return {"error": "need_day_or_trip_id", "hint": "ask the rider which day (date) or which order id"}
     trips, lines, _ = data.load()
@@ -31,9 +37,7 @@ def check_account(conn, rider_id, rec_day: date, day=None, trip_ids=None):
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(day)): return {"error": "day_must_be_YYYY-MM-DD"}
         mine = sorted([t for t in trips if t["rider_id"] == rider_id and t["day"] == day], key=lambda t: t["started_at"])
         out["day"] = {**engine.day_summary(rider_id, day, trips, lines), "in_dispute_window": engine.in_window(day, rec_day),
-                      "trips": [{"trip_id": t["trip_id"], "status": t["status"], "km": str(t["km"]), "surge": t["surge_multiplier"],
-                                 "policy_amount": engine.expected_trip_amount(t),
-                                 "paid": sum(int(l["amount"]) for l in lines if l["trip_id"] == t["trip_id"])} for t in mine[:30]],
+                      "trip_count": len(mine),
                       "findings": [{**f.dict(), "state": states[f.id], "in_window": engine.in_window(f.day, rec_day)} for f in findings if f.day == day]}
     if trip_ids:
         views = []
@@ -45,7 +49,7 @@ def check_account(conn, rider_id, rec_day: date, day=None, trip_ids=None):
     return out
 
 def submit_claim(conn, rider_id, message_id, rec_day, finding_ids):
-    return settle.claim(conn, rider_id, message_id, [str(x) for x in (finding_ids or [])][:30], rec_day)
+    return settle.claim(conn, rider_id, message_id, _as_list(finding_ids)[:30], rec_day)
 
 SPEC = [
  {"name": "check_account",
@@ -53,7 +57,8 @@ SPEC = [
                  "day counts (completed trips, incentive status) and 'findings' = issues where the rider was paid less than policy, each with an id, "
                  "amount owed, cause, in_dispute_window and state. Call before answering any payout question. Dates are YYYY-MM-DD.",
   "parameters": {"type": "object", "properties": {"day": {"type": "string", "description": "YYYY-MM-DD"},
-                 "trip_ids": {"type": "array", "items": {"type": "string"}}}}},
+                 "trip_id": {"type": "string", "description": "ONE order id, e.g. T123456"},
+                 "trip_ids": {"type": "array", "items": {"type": "string"}, "description": "several order ids"}}}},
  {"name": "submit_claim",
   "description": "File the rider's claim for specific findings the rider actually complained about (ids from check_account, state 'open'). "
                  "The server decides everything about money: it pays automatically only within the limits, otherwise sends to ops, or rejects. "
@@ -67,7 +72,7 @@ SPEC = [
 ]
 
 def dispatch(conn, rider_id, message_id, rec_day, name, args):
-    if name == "check_account": return check_account(conn, rider_id, rec_day, args.get("day"), args.get("trip_ids"))
+    if name == "check_account": return check_account(conn, rider_id, rec_day, args.get("day"), _as_list(args.get("trip_ids")) + _as_list(args.get("trip_id")))
     if name == "submit_claim": return submit_claim(conn, rider_id, message_id, rec_day, args.get("finding_ids"))
     if name == "escalate": return settle.escalate(conn, rider_id, message_id, str(args.get("reason", "unspecified"))[:500])
     return {"error": f"unknown tool {name}"}

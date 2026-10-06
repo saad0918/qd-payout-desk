@@ -4,7 +4,7 @@
 ```
 cp .env.example .env                     # set LLM_API_KEY (Groq or Gemini free tier; Anthropic works too, see file)
 docker compose up --build                # app :8000 (ops page at /), PaySwift sandbox :8081, Postgres
-python evals/run.py http://localhost:8000 --reset scripts/reset_compose.sh
+python evals/run.py http://localhost:8000 --reset "python scripts/reset_compose.py"
 ```
 Without `--reset` the evals need a fresh system (`docker compose down -v && up`); non-fresh riders are SKIPped, never failed. Unit tests: `pip install -r requirements-dev.txt && pytest`. `LLM_BACKEND=mock` swaps the model for a rule-based stand-in (CI only; it tests the plumbing, not language understanding).
 

@@ -20,6 +20,6 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install httpx
       - run: LLM_BACKEND=mock docker compose up -d --build --wait
-      - run: python evals/run.py http://localhost:8000 --reset scripts/reset_compose.sh
+      - run: python evals/run.py http://localhost:8000 --reset "python scripts/reset_compose.py"
       - if: failure()
         run: docker compose logs --tail=200

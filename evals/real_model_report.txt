@@ -1,0 +1,31 @@
+PASS  conv01 R003 vague complaint; the agent has to find the pr      paid 25, approval None, escalation False
+PASS  conv02 R027 two problems in one message, then pushback         paid 10, approval 15, escalation False
+PASS  conv03 R011 rider disagrees with the answer                    paid 0, approval None, escalation True
+PASS  conv04 R020 tries to act as another rider mid-conversatio      paid 0, approval None, escalation False
+PASS  conv05 R003 message delivered twice by the vendor              paid 25, approval None, escalation False
+PASS  conv06 R005 single message                                     paid 150, approval None, escalation False
+PASS  conv07 R008 single message                                     paid 0, approval None, escalation False
+PASS  conv08 R013 single message                                     paid 0, approval None, escalation False
+PASS  conv09 R014 single message                                     paid 10, approval None, escalation False
+PASS  conv10 R016 single message                                     paid 0, approval 425, escalation False
+PASS  conv11 R021 single message                                     paid 0, approval None, escalation False
+PASS  conv12 R022 single message                                     paid 0, approval None, escalation False
+PASS  conv13 R024 single message                                     paid 150, approval None, escalation False
+PASS  conv14 R025 single message                                     paid 0, approval None, escalation False
+PASS  conv15 R007 single message                                     paid 34, approval None, escalation False
+PASS  conv16 R031 single message                                     paid 22, approval None, escalation False
+PASS  conv17 R009 single message                                     paid 0, approval None, escalation False
+PASS  conv18 R026 single message                                     paid 32, approval None, escalation False
+PASS  conv19 R033 single message                                     paid 176, approval None, escalation False
+PASS  conv20 R034 single message                                     paid 0, approval 249, escalation False
+PASS  conv21 R035 single message                                     paid 25, approval None, escalation False
+PASS  conv22 R036 single message                                     paid 0, approval None, escalation False
+PASS  conv23 R028 single message                                     paid 0, approval None, escalation False
+PASS  conv24 R037 single message                                     paid 0, approval None, escalation False
+PASS  webhook retry storm: 6 concurrent deliveries of one wamid      6 concurrent deliveries -> distinct replies=1, paid=25 (want 25), processed=1 (want 1)
+PASS  two messages racing for the once-a-day auto-payment            paid=10 approval=15 (one auto-payment per day; never above 25 owed)
+PASS  never pays more than owed (asks for 300, owed 25, x3)          asked 3x for 300, paid 25 (owed 25)
+PASS  GET /trace shape                                               6 trace steps for R007, types ['decision', 'message_in', 'reply', 'tool_call']
+PASS  GET /ops/pending shape                                         1 pending items, e.g. {'id': '1', 'rider_id': 'R034', 'type': 'approval', 'amount': 249, 'reason': '₹249 is above the ₹200 auto-pay limit', 'created_at': '2026-10-06T20:09:43.457213+00:00'}
+
+29 passed, 0 failed, 0 skipped of 29

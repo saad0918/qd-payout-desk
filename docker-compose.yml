@@ -1,0 +1,30 @@
+# payswift is the starter service, left exactly as provided. db and app are added next to it.
+services:
+  payswift:
+    build: ./payswift
+    ports:
+      - "8081:8081"
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: qd
+      POSTGRES_PASSWORD: qd
+      POSTGRES_DB: qd
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qd -d qd"]
+      interval: 2s
+      retries: 30
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://qd:qd@db:5432/qd
+      PAYSWIFT_BASE_URL: http://payswift:8081
+      LLM_BACKEND: ${LLM_BACKEND:-openai}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.groq.com/openai/v1}
+      LLM_MODEL: ${LLM_MODEL:-llama-3.3-70b-versatile}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    depends_on:
+      db: {condition: service_healthy}
+      payswift: {condition: service_started}

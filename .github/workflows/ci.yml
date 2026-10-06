@@ -1,0 +1,25 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+  e2e:
+    # Whole stack via docker compose with the rule-based LLM stand-in, then the eval suite on a fresh system per scenario.
+    # Proves dedupe, limits, PaySwift failure handling, trace and ops queue. Language understanding is covered by running evals with a real key.
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install httpx
+      - run: LLM_BACKEND=mock docker compose up -d --build --wait
+      - run: python evals/run.py http://localhost:8000 --reset scripts/reset_compose.sh
+      - if: failure()
+        run: docker compose logs --tail=200

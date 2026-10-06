@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payout desk · ops</title>
+<style>
+:root{--bg:#f3f4f1;--panel:#fff;--ink:#1b2320;--mute:#68726d;--line:#d8ddd8;--ok:#0b5d4b;--warn:#9a5b00;--bad:#a3392b;--info:#2f5d8a}
+@media(prefers-color-scheme:dark){:root{--bg:#121614;--panel:#1a1f1c;--ink:#e5eae6;--mute:#97a29b;--line:#2a322d;--ok:#5cc7a8;--warn:#e0a23c;--bad:#e5766a;--info:#7db2e0}}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+@media(max-width:820px){body{grid-template-columns:1fr}aside{border-right:0!important;border-bottom:1px solid var(--line);max-height:34vh}}
+aside{border-right:1px solid var(--line);padding:14px;overflow:auto}main{padding:20px 24px;max-width:960px;overflow:auto}
+h1{font-size:16px;margin:0 0 10px}h2{font-size:15px;margin:26px 0 8px}
+.rider{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:9px 4px;color:inherit;font:inherit;cursor:pointer}
+.rider[aria-current=true]{background:var(--panel);box-shadow:inset 3px 0 var(--ok)}
+.rider:hover{background:var(--panel)}.rider:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.small{color:var(--mute);font-size:13px}.item{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:4px;padding:11px 13px;margin:8px 0}
+.item.esc{border-left-color:var(--info)}.amt{font-weight:650}
+.bubble{padding:9px 12px;margin:6px 0;border-radius:4px;border:1px solid var(--line);background:var(--panel);max-width:80%;white-space:pre-wrap}
+.bubble.out{margin-left:auto;border-color:var(--ok)}.who{font-size:12px;color:var(--mute)}
+button.act{font:inherit;padding:6px 13px;border-radius:4px;border:1px solid var(--ok);background:var(--ok);color:#fff;cursor:pointer;margin:8px 8px 0 0}
+@media(prefers-color-scheme:dark){button.act{color:#08120e}}
+button.act.sec{background:none;color:var(--ink);border-color:var(--line)}button.act.no{background:none;color:var(--bad);border-color:var(--bad)}
+.tr{border-left:3px solid var(--line);padding:2px 0 2px 10px;margin:6px 0}.tr.tool_call{border-color:var(--info)}.tr.decision{border-color:var(--warn)}
+.tr.reply{border-color:var(--ok)}.tr.error{border-color:var(--bad)}.tr.message_in{border-color:var(--mute)}
+.tr b{font-weight:600}pre{margin:6px 0 4px;white-space:pre-wrap;word-break:break-word;font-size:12px;color:var(--mute)}
+.pill{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:0 8px;margin-left:6px}
+</style></head><body>
+<aside><h1>Riders</h1><div id="riders" role="list"></div></aside>
+<main>
+ <h2 style="margin-top:0">Waiting for ops</h2><div id="pending" class="small">Loading…</div>
+ <h2 id="ctitle">Conversation</h2><div id="convo" class="small">Choose a rider on the left.</div>
+ <h2>Disputes</h2><div id="disputes" class="small">–</div>
+ <h2>What the agent did</h2><div id="trace" class="small">–</div>
+</main>
+<script>
+const $=id=>document.getElementById(id), j=u=>fetch(u).then(r=>r.json()), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let cur=null;
+const when=t=>new Date(t).toLocaleString();
+async function pending(){const p=await j('/ops/pending');
+ $('pending').innerHTML=p.length?p.map(a=>`<div class="item ${a.type==='escalation'?'esc':''}">
+  <b>${a.type==='approval'?'Approval needed':'Escalation'}</b> · rider ${esc(a.rider_id)} ${a.amount!=null?`· <span class="amt">₹${esc(a.amount)}</span>`:''}
+  <div>${esc(a.reason)}</div><div class="small">${when(a.created_at)}</div>
+  ${a.type==='approval'?`<button class="act" onclick="decide(${a.id},'approve')">Approve payout</button><button class="act no" onclick="decide(${a.id},'reject')">Reject</button>`
+   :`<button class="act sec" onclick="decide(${a.id},'resolve')">Mark handled</button>`}
+  <button class="act sec" onclick="openRider('${esc(a.rider_id)}')">Open conversation</button></div>`).join(''):'Nothing waiting.'}
+async function decide(id,a){const r=await fetch(`/ops/approvals/${id}/${a}`,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}).then(r=>r.json());
+ if(!r.ok)alert('Could not apply: '+(r.error||'unknown'));await pending();if(cur)openRider(cur)}
+async function riders(){const r=await j('/ops/conversations');
+ $('riders').innerHTML=r.map(x=>`<button class="rider" role="listitem" aria-current="${x.rider_id===cur}" onclick="openRider('${esc(x.rider_id)}')">${esc(x.rider_id)}<div class="small">${x.n} message${x.n==1?'':'s'}</div></button>`).join('')||'<div class="small">No conversations yet.</div>'}
+async function openRider(id){cur=id;$('ctitle').textContent='Conversation · '+id;riders();
+ const [m,t,d]=await Promise.all([j('/ops/messages/'+id),j('/trace/'+id),j('/ops/disputes/'+id)]);
+ $('convo').innerHTML=m.map(x=>`<div class="who">rider · ${when(x.created_at)}</div><div class="bubble">${esc(x.text)}</div><div class="who" style="text-align:right">agent</div><div class="bubble out">${esc(x.reply??'(no reply yet)')}</div>`).join('')||'No messages.';
+ $('disputes').innerHTML=d.length?d.map(x=>`<div class="item" style="border-left-color:var(--ok)"><b>${esc(x.kind)}</b> · ${esc(x.day)} · <span class="amt">₹${esc(x.amount)}</span><span class="pill">${esc(x.status)}</span><div class="small">${esc(x.reason||'')} · ${esc((x.finding_ids||[]).join(', '))}</div></div>`).join(''):'None.';
+ $('trace').innerHTML=t.map(e=>`<div class="tr ${esc(e.type)}"><details><summary><b>${esc(e.type)}</b> · ${esc(e.name)} <span class="small">${when(e.at)}</span></summary>
+  <pre>${esc(JSON.stringify({input:e.input,output:e.output},null,1))}</pre></details></div>`).join('')||'No steps.'}
+pending();riders();setInterval(()=>{pending();riders()},6000);
+</script></body></html>
